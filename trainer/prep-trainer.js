@@ -1,9 +1,10 @@
 /* Тренажёр по ТЭМ и препаратам: карточки (фото → название) и тест «узнай препарат».
-   Данные берутся из карточек атласа (#panel-tem, #panel-color):
-     data-short — короткое название для ответа (иначе берётся заголовок карточки);
-     data-group — группа похожих препаратов: из неё в первую очередь берутся неверные варианты;
-     data-look  — 'em' для электронограмм среди цветных препаратов (варианты тогда тоже электронограммы);
-     data-clean — фото без подписей (иначе берутся фото из карточки). */
+   Данные — trainer/data.js (window.PT_DATA = {tem: [...], color: [...]}), у каждого препарата:
+     name  — название как на фото / в источнике;
+     imgs  — фото без подписей;
+     group — группа похожих препаратов: из неё в первую очередь берутся неверные варианты;
+     look  — 'em' для электронограмм среди цветных препаратов;
+     html  — описание слово в слово из материалов. */
 (function(){
   'use strict';
   var root = document.getElementById('panel-trainer');
@@ -15,28 +16,21 @@
   function pick(a){ return a[Math.floor(Math.random() * a.length)]; }
   function store(k, v){ try{ if(v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); }catch(e){ return null; } }
 
-  function collect(panelId, kind){
-    return [].map.call(document.querySelectorAll('#' + panelId + ' .prep-card'), function(c, i){
-      var imgs = c.dataset.clean ? c.dataset.clean.split('|') : [].map.call(c.querySelectorAll('.prep-img img'), function(m){ return m.getAttribute('src'); });
-      var body = c.querySelector('.prep-body').cloneNode(true);
-      var t = body.querySelector('.prep-title'), title = t ? t.textContent.trim() : '';
-      if(t) t.remove();
-      var g = c.closest('.qgroup'), h = g && g.querySelector('h2');
-      return {
-        id: kind + i, kind: kind, title: title, label: c.dataset.short || title, imgs: imgs,
-        group: c.dataset.group || (h ? h.textContent.trim() : kind),
-        look: c.dataset.look || (kind === 'tem' ? 'em' : 'light'), body: body.innerHTML
-      };
+  /* данные — trainer/data.js (window.PT_DATA): название и описание слово в слово из материалов */
+  function load(kind){
+    return ((window.PT_DATA || {})[kind] || []).map(function(d, i){
+      return { id: kind + i, kind: kind, label: d.name, imgs: d.imgs, group: d.group || kind,
+               look: d.look || (kind === 'tem' ? 'em' : 'light'), body: d.html };
     });
   }
-  var SETS = { tem: collect('panel-tem', 'tem'), color: collect('panel-color', 'color') };
+  var SETS = { tem: load('tem'), color: load('color') };
   var ALL = SETS.tem.concat(SETS.color);
   var NAMES = { tem: 'ТЭМ', color: 'Препараты' };
 
   /* три неверных варианта: сначала из той же группы и того же вида снимка (ТЭМ / световая), потом того же раздела, без повторов названий */
   function options(item){
     var seen = {}, out = [];
-    function key(x){ return x.label.replace(/\s*\(ультраструктура\)/i, '').toLowerCase(); }  // одна и та же структура на ТЭМ и в препаратах
+    function key(x){ return x.label.replace(/\s*\(ультраструктура\)/i, '').replace(/ё/g, 'е').toLowerCase(); }  // одна и та же структура на ТЭМ и в препаратах
     seen[key(item)] = 1;
     function add(list){ shuffle(list).forEach(function(x){ if(out.length < 3 && !seen[key(x)]){ seen[key(x)] = 1; out.push(x); } }); }
     add(ALL.filter(function(x){ return x.group === item.group && x.look === item.look; }));
@@ -75,7 +69,8 @@
     'details.pt-desc summary::-webkit-details-marker{display:none;}' +
     'details.pt-desc summary::before{content:"▸ ";}' +
     'details.pt-desc[open] summary::before{content:"▾ ";}' +
-    'details.pt-desc .prep-note{border-top:none;padding-top:4px;}' +
+    '.pt-desc ul,.pt-desc ol{margin:.3em 0 .6em;padding-left:1.2em;}.pt-desc li{margin-bottom:.2em;}.pt-desc p{margin:.45em 0;}' +
+    '.pt-cap{font-style:italic;color:var(--text-muted);}.pt-leg{margin:.4em 0 .7em;font-size:.92rem;}.pt-leg div{margin:.1em 0;}.pt-src div{margin:.15em 0;}.pt-gap{height:.5em;}' +
     '.pt-actions{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;}.pt-actions[hidden],.pt-result[hidden]{display:none;}' +
     '.pt-btn{font:inherit;font-weight:600;font-size:.93rem;padding:10px 16px;border-radius:12px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer;flex:1;min-width:140px;}' +
     '.pt-btn:hover{border-color:var(--accent);}' +
@@ -146,7 +141,6 @@
   function info(it, src, thumb){
     return '<div class="pt-info">' + (thumb ? '<img class="pt-thumb" src="' + esc(src) + '" alt="">' : '') +
       '<p class="pt-name">' + esc(it.label) + '</p>' +
-      (it.title && it.title !== it.label ? '<div class="pt-sub">' + esc(it.title) + '</div>' : '') +
       '<details class="pt-desc"><summary>Описание</summary>' + it.body + '</details></div>';
   }
   /* фото по высоте окна: всё остальное (шапка, переключатели, кнопки) измеряем, фото получает остаток */
